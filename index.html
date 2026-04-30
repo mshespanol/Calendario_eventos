@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Speaker Hub ESP</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--blue:#0078D4;--dark:#106EBE;--light:#E8F4FD;--bg:#F3F2F1;--surface:#fff;--border:#E1DFDD;--text:#323130;--muted:#605E5C}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+    nav{background:var(--blue);color:#fff;display:flex;align-items:center;gap:1rem;padding:.75rem 1.5rem}
+    nav h1{font-size:1.1rem;font-weight:600;flex:1}
+    #loginBtn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:.4rem .9rem;border-radius:4px;cursor:pointer;font-size:.85rem}
+    .container{max-width:1100px;margin:0 auto;padding:1.5rem}
+    .toolbar{display:flex;gap:.75rem;align-items:center;margin-bottom:1.5rem}
+    .toolbar h2{flex:1;font-size:1.25rem}
+    .btn{display:inline-flex;align-items:center;padding:.5rem 1rem;border-radius:4px;border:none;cursor:pointer;font-size:.875rem;font-weight:500}
+    .btn-primary{background:var(--blue);color:#fff}.btn-ghost{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+    .sessions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem}
+    .session-card{background:var(--surface);border-radius:8px;border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column}
+    .card-header{padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid var(--border)}
+    .topic-badge{padding:.2rem .6rem;border-radius:12px;font-size:.7rem;font-weight:700;color:#fff;text-transform:uppercase}
+    .topic-fabric{background:#742774}.topic-power{background:#F2C811;color:#333}.topic-ai{background:#00B7C3}.topic-copilot{background:#0078D4}.topic-github{background:#24292F}
+    .state-badge{margin-left:auto;padding:.15rem .5rem;border-radius:10px;font-size:.7rem;font-weight:600}
+    .state-tentative{background:#FFF4CE;color:#8A6914}.state-confirmed{background:#DFF6DD;color:#0E5C0A}.state-open{background:#E8F4FD;color:#004578}.state-done{background:#E1DFDD;color:#605E5C}.state-cancelled{background:#FDE7E9;color:#8B0000}
+    .card-body{padding:1rem;flex:1}.card-body h3{font-size:1rem;margin-bottom:.25rem}
+    .card-meta{font-size:.8rem;color:var(--muted);margin-bottom:.75rem}
+    .card-desc{font-size:.85rem;color:var(--muted);margin-bottom:1rem}
+    .checklist{display:grid;grid-template-columns:repeat(2,1fr);gap:.35rem}
+    .check-item{display:flex;align-items:center;gap:.4rem;font-size:.78rem;cursor:pointer;padding:.2rem .3rem;border-radius:3px}
+    .check-item:hover{background:var(--light)}.check-item input{accent-color:var(--blue);width:14px;height:14px;flex-shrink:0}
+    .check-item.done-item span{text-decoration:line-through;color:var(--muted)}
+    .progress-bar{height:4px;background:var(--border);border-radius:2px;margin:.75rem 0 .25rem;overflow:hidden}
+    .progress-fill{height:100%;background:var(--blue);border-radius:2px;transition:width .3s}
+    .progress-label{font-size:.75rem;color:var(--muted);text-align:right}
+    .card-footer{padding:.75rem 1rem;border-top:1px solid var(--border);display:flex;align-items:center}
+    .rsvp-count{font-size:.82rem;color:var(--muted);flex:1}
+    .rsvp-btn{padding:.35rem .75rem;border-radius:4px;border:1px solid var(--blue);background:#fff;color:var(--blue);font-size:.82rem;cursor:pointer}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem}
+    .modal{background:#fff;border-radius:8px;width:100%;max-width:480px;padding:1.5rem}
+    .modal h2{font-size:1.1rem;margin-bottom:1rem}
+    .fg{margin-bottom:.9rem}.fg label{display:block;font-size:.82rem;font-weight:600;margin-bottom:.3rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.5rem .75rem;border:1px solid var(--border);border-radius:4px;font-size:.875rem;font-family:inherit}
+    .fg textarea{min-height:80px;resize:vertical}
+    .modal-actions{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem}
+    .empty{text-align:center;padding:3rem;color:var(--muted)}
+    .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#323130;color:#fff;padding:.75rem 1.25rem;border-radius:6px;font-size:.875rem;z-index:200}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .rt{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6FCF97;animation:pulse 2s infinite;margin-left:.25rem}
+    .hidden{display:none!important}
+  </style>
+</head>
+<body>
+<nav>
+  <h1>&#127908; Speaker Hub ESP <span class="rt"></span></h1>
+  <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem">
+    <span id="uName"></span><button id="loginBtn">Iniciar sesion</button>
+  </div>
+</nav>
+<div class="container">
+  <div class="toolbar">
+    <h2>Sesiones</h2>
+    <button class="btn btn-primary hidden" id="newBtn">+ Nueva sesion</button>
+  </div>
+  <div class="sessions-grid" id="grid"><div class="empty"><p>Cargando...</p></div></div>
+</div>
+<div class="modal-overlay hidden" id="sMod">
+  <div class="modal">
+    <h2>Nueva sesion</h2>
+    <div class="fg"><label>Titulo *</label><input id="fT" type="text"/></div>
+    <div class="fg"><label>Descripcion</label><textarea id="fD"></textarea></div>
+    <div class="fg"><label>Tema *</label><select id="fTo"><option value="fabric">Fabric</option><option value="power">Power Platform</option><option value="ai">AI</option><option value="copilot" selected>Copilot</option><option value="github">GitHub</option></select></div>
+    <div class="fg"><label>Estado</label><select id="fSt"><option value="tentative" selected>Tentativa</option><option value="confirmed">Confirmada</option><option value="open">Abierta</option></select></div>
+    <div class="fg"><label>Fecha *</label><input id="fF" type="datetime-local"/></div>
+    <div class="fg"><label>Duracion (min)</label><input id="fDu" type="number" value="60" min="15" step="15"/></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="cS">Cancelar</button><button class="btn btn-primary" id="svS">Guardar</button></div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="rMod">
+  <div class="modal" style="max-width:380px">
+    <h2>Apuntarme</h2>
+    <div class="fg"><label>Nombre</label><input id="rN" type="text"/></div>
+    <div class="fg"><label>Email *</label><input id="rE" type="email"/></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="cR">Cancelar</button><button class="btn btn-primary" id="svR">Confirmar</button></div>
+  </div>
+</div>
+<script>
+const URL_='https://zxbfekgaaozvnlkkmfqh.supabase.co',KEY_='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4YmZla2dhYW96dm5sa2ttZnFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MTQ0NzQsImV4cCI6MjA5MzA5MDQ3NH0.9Ennf8zaf48YgQwn68QFeZNhzxP3ZrMkEW8CQMmpWNI';
+const db=supabase.createClient(URL_,KEY_);
+const TL={plan:'Plan',speaker:'Speaker',deck:'Deck',restream:'Restream',meetup:'Meetup',linkedin:'LinkedIn',whatsapp:'WhatsApp',poster:'Poster',reminder:'Recordatorio',live:'Live',recording:'Grabacion',metrics:'Metricas',thanks:'Gracias'};
+const SL={tentative:'Tentativa',confirmed:'Confirmada',open:'Abierta',done:'Realizada',cancelled:'Cancelada'};
+let user=null,isOrg=false,rSid=null,sess=[],chks={},rvps={};
+async function initAuth(){const{data:{session:s}}=await db.auth.getSession();if(s)await setUser(s.user);db.auth.onAuthStateChange(async(_,s)=>{s?await setUser(s.user):clrUser();});}
+async function setUser(u){user=u;const{data:d}=await db.from('organizers').select('role').eq('id',u.id).single();isOrg=!!d;document.getElementById('uName').textContent=u.email;document.getElementById('loginBtn').textContent='Salir';if(isOrg)document.getElementById('newBtn').classList.remove('hidden');render();}
+function clrUser(){user=null;isOrg=false;document.getElementById('uName').textContent='';document.getElementById('loginBtn').textContent='Iniciar sesion';document.getElementById('newBtn').classList.add('hidden');render();}
+document.getElementById('loginBtn').onclick=()=>user?db.auth.signOut():db.auth.signInWithOAuth({provider:'azure',options:{scopes:'email profile',redirectTo:location.href}});
+async function load(){const[{data:s},{data:c},{data:r}]=await Promise.all([db.from('sessions').select('*').order('starts_at'),db.from('checklist_items').select('*'),db.from('session_rsvp_counts').select('*')]);sess=s||[];chks={};(c||[]).forEach(x=>{if(!chks[x.session_id])chks[x.session_id]={};chks[x.session_id][x.task_key]=x;});rvps={};(r||[]).forEach(x=>{rvps[x.session_id]=x.going;});render();}
+function render(){const g=document.getElementById('grid');if(!sess.length){g.innerHTML='<div class="empty"><p>Sin sesiones aun.</p></div>';return;}const ks=Object.keys(TL);g.innerHTML=sess.map(s=>{const ch=chks[s.id]||{};const dn=ks.filter(k=>ch[k]?.done).length;const pct=Math.round(dn/ks.length*100);const dt=new Date(s.starts_at).toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});const go=rvps[s.id]||0;const cl=ks.map(k=>{const it=ch[k]||{};return '<label class="check-item'+(it.done?' done-item':'')+'"><input type="checkbox"'+(it.done?' checked':'')+(isOrg?'':' disabled')+' onchange="tog('+JSON.stringify(s.id)+','+JSON.stringify(k)+',this.checked)"><span>'+TL[k]+'</span></label>';}).join('');return '<div class="session-card"><div class="card-header"><span class="topic-badge topic-'+s.topic+'">'+s.topic+'</span><span class="state-badge state-'+s.state+'">'+SL[s.state]+'</span></div><div class="card-body"><h3>'+s.title+'</h3><div class="card-meta">'+dt+' &middot; '+s.duration_min+'min &middot; '+s.hub+'</div>'+(s.description?'<div class="card-desc">'+s.description+'</div>':'')+'<div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><div class="progress-label">'+dn+'/'+ks.length+' tareas</div><div class="checklist">'+cl+'</div></div><div class="card-footer"><div class="rsvp-count">'+go+' apuntados</div>'+(s.state==="open"?'<button class="rsvp-btn" onclick="oR('+JSON.stringify(s.id)+')">Me apunto</button>':'')+'</div></div>';}).join('');}
+async function tog(sid,k,done){if(!isOrg)return;await db.from('checklist_items').update({done}).eq('session_id',sid).eq('task_key',k);if(!chks[sid])chks[sid]={};chks[sid][k]={...chks[sid][k],done};render();}
+document.getElementById('newBtn').onclick=()=>{document.getElementById('sMod').classList.remove('hidden');const n=new Date();n.setHours(n.getHours()+1,0,0,0);n.setDate(n.getDate()+7);document.getElementById('fF').value=n.toISOString().slice(0,16);};
+document.getElementById('cS').onclick=()=>document.getElementById('sMod').classList.add('hidden');
+document.getElementById('svS').onclick=async()=>{const t=document.getElementById('fT').value.trim(),f=document.getElementById('fF').value;if(!t||!f){toast('Titulo y fecha requeridos');return;}const{error:e}=await db.from('sessions').insert({title:t,description:document.getElementById('fD').value.trim(),topic:document.getElementById('fTo').value,state:document.getElementById('fSt').value,starts_at:new Date(f).toISOString(),duration_min:parseInt(document.getElementById('fDu').value)||60,hub:'Microsoft Teams Live',created_by:user?.id});e?toast('Error: '+e.message):(document.getElementById('sMod').classList.add('hidden'),document.getElementById('fT').value='',document.getElementById('fD').value='',toast('Sesion creada'),load());};
+function oR(sid){rSid=sid;document.getElementById('rMod').classList.remove('hidden');}
+document.getElementById('cR').onclick=()=>document.getElementById('rMod').classList.add('hidden');
+document.getElementById('svR').onclick=async()=>{const em=document.getElementById('rE').value.trim();if(!em){toast('Email requerido');return;}const{error:e}=await db.from('rsvps').insert({session_id:rSid,email:em,name:document.getElementById('rN').value.trim()});if(e){toast(e.code==='23505'?'Ya estas apuntado':'Error: '+e.message);return;}document.getElementById('rMod').classList.add('hidden');document.getElementById('rE').value='';document.getElementById('rN').value='';toast('Apuntado!');rvps[rSid]=(rvps[rSid]||0)+1;render();};
+function setupRT(){db.channel('rt').on('postgres_changes',{event:'*',schema:'public',table:'sessions'},load).on('postgres_changes',{event:'*',schema:'public',table:'checklist_items'},p=>{const c=p.new;if(!chks[c.session_id])chks[c.session_id]={};chks[c.session_id][c.task_key]=c;render();}).on('postgres_changes',{event:'*',schema:'public',table:'rsvps'},async p=>{const sid=p.new?.session_id;if(sid){const{data}=await db.from('session_rsvp_counts').select('going').eq('session_id',sid).single();if(data){rvps[sid]=data.going;render();}}}).subscribe();}
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+(async()=>{await initAuth();await load();setupRT();})();
+</script>
+</body>
+</html>
